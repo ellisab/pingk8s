@@ -67,7 +67,7 @@ func main() {
 
 		for _, pod := range pods.Items {
 			if !pod.Spec.HostNetwork {
-				fmt.Printf("%s %v\n", pod.GetName(), pod.Spec.HostNetwork)
+				fmt.Printf("%s %v %v\n", pod.GetName(), pod.Spec.HostNetwork, pod.Status.PodIP)
 			}
 		}
 		time.Sleep(50 * time.Second)
