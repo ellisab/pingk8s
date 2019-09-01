@@ -18,37 +18,18 @@ limitations under the License.
 package main
 
 import (
-	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/sparrc/go-ping"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	//
-	// Uncomment to load all auth plugins
-	// _ "k8s.io/client-go/plugin/pkg/client/auth"
-	//
-	// Or uncomment to load specific auth plugins
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/azure"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/openstack"
+	"k8s.io/client-go/rest"
 )
 
 func main() {
-	var kubeconfig *string
-	if home := homeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	// creates the in-cluster config
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
 	}
@@ -67,16 +48,23 @@ func main() {
 
 		for _, pod := range pods.Items {
 			if !pod.Spec.HostNetwork {
-				fmt.Printf("%s %v %v\n", pod.GetName(), pod.Spec.HostNetwork, pod.Status.PodIP)
+				go pinger(pod.GetName(), pod.Status.PodIP)
 			}
 		}
-		time.Sleep(50 * time.Second)
 	}
 }
 
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
+func pinger(name, ip string) {
+	for {
+		pinger, err := ping.NewPinger(ip)
+		if err != nil {
+			fmt.Printf("ping to %v failed: %v", ip, err)
+		}
+		pinger.SetPrivileged(true)
+		pinger.Count = 1
+		pinger.Run()
+		stats := pinger.Statistics()
+		fmt.Printf("%s %s %v\n", name, ip, stats)
+		time.Sleep(3 * time.Second)
 	}
-	return os.Getenv("USERPROFILE") // windows
 }
